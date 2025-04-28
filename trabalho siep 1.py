@@ -1,149 +1,110 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import plotly.express as px
 from scipy.stats import binom, poisson, norm
 
 # --- Layout de Abas ---
 tab1, tab2, tab3, tab4 = st.tabs([
-    "Análise de Overbooking",
-    "Distribuição de Chegada de Clientes",
-    "Distribuição Normal de Vendas",
-    "Simulação de ROI"
+    "Overbooking",
+    "Poisson",
+    "Normal",
+    "ROI"
 ])
 
-# --- ABA 1: Análise de Overbooking ---
+# --- ABA 1: Overbooking ---
 with tab1:
     st.header("Análise de Overbooking - Aérea Confiável")
     st.markdown("""
-**Contexto:**  
-A companhia aérea Aérea Confiável lançou promoções para a \"Ilha dos Sonhos\".  
-Vendeu 130 passagens para um voo com capacidade de 120 lugares, apostando em uma taxa de não comparecimento de 12%.
+Você vendeu 130 passagens para um avião com 120 lugares, apostando em 12% de não comparecimento.
 """)
 
     vendidos = st.slider("Passagens Vendidas", 120, 200, 130)
-    p = st.slider("Taxa de Comparecimento (%)", 0.0, 1.0, 0.88, step=0.01)
-    capacidade = st.number_input("Capacidade do Avião", min_value=1, value=120)
+    p = st.slider("Chance de Comparecimento (%)", 0.0, 1.0, 0.88, step=0.01)
+    capacidade = st.number_input("Capacidade do Avião", 1, 500, 120)
 
-    xs = np.arange(0, vendidos + 1)
+    # Distribuição Binomial
+    xs = np.arange(vendidos + 1)
     pmf = binom.pmf(xs, vendidos, p)
-    df_pmf = pd.DataFrame({"Comparecimentos": xs, "Probabilidade": pmf})
+    df_pmf = pd.DataFrame({"Comparecimentos": xs, "Probabilidade": pmf}).set_index("Comparecimentos")
+    st.subheader("Distribuição de Comparecimentos")
+    st.bar_chart(df_pmf)
 
-    fig_pmf = px.bar(
-        df_pmf, x="Comparecimentos", y="Probabilidade",
-        title="Distribuição de Comparecimento",
-        labels={"Probabilidade": "P(X = k)"}
-    )
-    fig_pmf.add_vline(x=capacidade, line_dash="dash", line_color="red",
-                      annotation_text="Capacidade Máxima", annotation_position="top right")
-    st.plotly_chart(fig_pmf, use_container_width=True)
+    # Probabilidade de overbooking
+    prob_over = 1 - binom.cdf(capacidade, vendidos, p)
+    st.metric("P(overbooking > capacidade)", f"{prob_over:.2%}")
 
-    # Cálculo da probabilidade de overbooking
-    prob_overbooking = 1 - binom.cdf(capacidade, vendidos, p)
-    st.metric("Probabilidade de Overbooking", f"{prob_overbooking:.2%}")
-
-    # Risco de Overbooking
-    st.subheader("Limite de Risco de 7%")
+    # Risco vs vendas
     vendas_test = np.arange(capacidade, vendidos * 2 + 1)
-    riscos = [1 - binom.cdf(capacidade, n, p) for n in vendas_test]
-    df_risco = pd.DataFrame({"Passagens Vendidas": vendas_test, "Risco de Overbooking": riscos})
+    riscos = 1 - binom.cdf(capacidade, vendas_test, p)
+    df_risco = pd.DataFrame({
+        "Passagens Vendidas": vendas_test,
+        "Risco": riscos
+    }).set_index("Passagens Vendidas")
+    st.subheader("Risco de Overbooking (Limite 7%)")
+    st.line_chart(df_risco)
+    st.write("→ Se Risco ≤ 7%, vendas seguras até:",
+             int(df_risco[df_risco["Risco"] <= 0.07].idxmax()))
 
-    fig_risco = px.line(
-        df_risco, x="Passagens Vendidas", y="Risco de Overbooking",
-        title="Probabilidade de Overbooking vs. Número de Passagens Vendidas"
-    )
-    fig_risco.add_hline(y=0.07, line_dash="dash", line_color="red",
-                        annotation_text="Limite 7%", annotation_position="bottom right")
-    st.plotly_chart(fig_risco, use_container_width=True)
+    # Viabilidade financeira +10 assentos
+    st.subheader("Venda de +10 assentos")
+    custo_ind = st.number_input("Custo de Indenização (R$)", 100, 5000, 500)
+    preco = st.number_input("Preço Médio da Passagem (R$)", 100, 5000, 500)
+    lucro_extra = 10 * preco
+    custo_esp = prob_over * custo_ind * (vendidos - capacidade)
+    st.metric("Lucro Extra (10 assentos)", f"R$ {lucro_extra:,.2f}".replace(",", "."))
+    st.metric("Custo Esperado Indenizações", f"R$ {custo_esp:,.2f}".replace(",", "."))
 
-    max_seguro = df_risco[df_risco["Risco de Overbooking"] <= 0.07]["Passagens Vendidas"].max()
-    if not np.isnan(max_seguro):
-        st.success(f"Máximo seguro de passagens: {int(max_seguro)}")
-    else:
-        st.error("Não é possível manter risco ≤ 7%.")
-
-    # Viabilidade Financeira
-    st.subheader("Análise Financeira - Venda de 10 Assentos Extras")
-    custo_ind = st.number_input("Custo de Indenização por Passageiro (R$)", value=500)
-    preco_medio = st.number_input("Preço Médio de Passagem (R$)", value=500)
-
-    lucro_extra = 10 * preco_medio
-    custo_esperado = prob_overbooking * custo_ind * (vendidos - capacidade)
-
-    st.metric("Lucro Bruto com 10 Passagens Extras", f"R$ {lucro_extra:,.2f}".replace(",", "."))
-    st.metric("Custo Esperado com Indenizações", f"R$ {custo_esperado:,.2f}".replace(",", "."))
-
-# --- ABA 2: Distribuição de Chegada (Poisson) ---
+# --- ABA 2: Poisson ---
 with tab2:
-    st.header("Distribuição de Poisson - Chegada de Clientes")
-    lambda_val = st.slider("Taxa média de chegadas (λ)", 1, 20, 5)
-    horas = np.arange(0, 15)
-    df_poisson = pd.DataFrame({
-        "Número de Clientes": horas,
-        "Probabilidade": poisson.pmf(horas, mu=lambda_val)
-    })
+    st.header("Distribuição de Poisson")
+    lam = st.slider("λ (chegadas/hora)", 1, 20, 5)
+    k = np.arange(0, 15)
+    probs = poisson.pmf(k, mu=lam)
+    df_p = pd.DataFrame({"Clientes": k, "Probabilidade": probs}).set_index("Clientes")
+    st.bar_chart(df_p)
 
-    fig_poisson = px.bar(
-        df_poisson, x="Número de Clientes", y="Probabilidade",
-        title="Distribuição de Chegadas - Poisson",
-        labels={"Probabilidade": "P(X = k)"}
-    )
-    st.plotly_chart(fig_poisson, use_container_width=True)
-
-# --- ABA 3: Distribuição Normal (Vendas) ---
+# --- ABA 3: Normal ---
 with tab3:
-    st.header("Distribuição Normal - Vendas de Produtos")
-    media = st.slider("Média de Vendas", 50, 150, 100)
-    desvio = st.slider("Desvio Padrão das Vendas", 5, 30, 15)
+    st.header("Distribuição Normal")
+    mu = st.slider("Média", 0.0, 200.0, 100.0)
+    sigma = st.slider("Desvio Padrão", 1.0, 50.0, 15.0)
+    x = np.linspace(mu - 4*sigma, mu + 4*sigma, 200)
+    dens = norm.pdf(x, mu, sigma)
+    df_n = pd.DataFrame({"Vendas": x, "Densidade": dens}).set_index("Vendas")
+    st.area_chart(df_n)
 
-    x = np.linspace(media - 4*desvio, media + 4*desvio, 200)
-    df_normal = pd.DataFrame({"Vendas": x, "Densidade": norm.pdf(x, media, desvio)})
-
-    fig_normal = px.area(
-        df_normal, x="Vendas", y="Densidade",
-        title="Distribuição Normal de Vendas"
-    )
-    st.plotly_chart(fig_normal, use_container_width=True)
-
-# --- ABA 4: Simulação de ROI ---
+# --- ABA 4: ROI ---
 with tab4:
-    st.header("Simulação de ROI - Sistema de Informação")
-    st.markdown("""
-**Contexto:**  
-Investimento de R$ 50.000,00 para implementar sistema de previsão de demanda.  
-Receita esperada de R$ 80.000,00 no primeiro ano.  
-Custo operacional anual de R$ 10.000,00.
-""")
+    st.header("Simulação de ROI")
+    st.markdown("Investimento R$50 000 → +R$80 000/ano – Custo op. R$10 000/ano")
 
-    receita_esp = st.number_input("Receita Adicional Esperada (R$)", value=80000)
-    custo_op = st.number_input("Custo Operacional Anual (R$)", value=10000)
-    investimento = st.number_input("Investimento Inicial (R$)", value=50000)
-    n_sim = st.slider("Número de Simulações Monte Carlo", 100, 5000, 1000, step=100)
+    receita = st.number_input("Receita Adicional (R$)", 0, 200000, 80000)
+    custo = st.number_input("Custo Operacional (R$)", 0, 50000, 10000)
+    inv = st.number_input("Investimento Inicial (R$)", 0, 200000, 50000)
+    sims = st.slider("Número de simulações", 100, 5000, 1000, step=100)
 
-    roi_esp = (receita_esp - custo_op) / investimento * 100
+    # Cálculo do ROI esperado
+    roi_esp = (receita - custo) / inv * 100
     st.metric("ROI Esperado", f"{roi_esp:.2f}%")
 
-    sim_receita = np.random.normal(loc=receita_esp, scale=0.2 * receita_esp, size=n_sim)
-    sim_lucro = sim_receita - custo_op
-    sim_roi = (sim_lucro / investimento) * 100
+    # Monte Carlo
+    receitas_sim = np.random.normal(receita, 0.2*receita, sims)
+    lucros_sim = receitas_sim - custo
+    roi_sim = lucros_sim / inv * 100
 
-    df_sim = pd.DataFrame({"ROI (%)": sim_roi})
+    # Histograma
+    hist, bins = np.histogram(roi_sim, bins=40)
+    df_h = pd.DataFrame({"ROI": bins[:-1], "Frequência": hist}).set_index("ROI")
+    st.bar_chart(df_h)
 
-    fig_hist = px.histogram(
-        df_sim, x="ROI (%)", nbins=40,
-        title="Simulação de ROI",
-        labels={"ROI (%)": "% de ROI"}
-    )
-    st.plotly_chart(fig_hist, use_container_width=True)
+    # CDF
+    sorted_roi = np.sort(roi_sim)
+    cdf = np.arange(1, sims+1) / sims
+    df_c = pd.DataFrame({"ROI": sorted_roi, "CDF": cdf}).set_index("ROI")
+    st.line_chart(df_c)
 
-    fig_cdf = px.ecdf(
-        df_sim, x="ROI (%)",
-        title="Distribuição Acumulada de ROI"
-    )
-    st.plotly_chart(fig_cdf, use_container_width=True)
+    pct_neg = (roi_sim < 0).mean()
+    st.metric("P(ROI < 0)", f"{pct_neg:.2%}")
 
-    prob_neg = np.mean(sim_roi < 0)
-    st.metric("Probabilidade de ROI Negativo", f"{prob_neg:.2%}")
-
-    decisao = "Recomenda-se o investimento." if np.mean(sim_roi) > 0 else "Revisar custos e premissas do projeto."
-    st.markdown(f"**Decisão:** {decisao}")
+    decisão = "Invista, ROI positivo." if roi_sim.mean() > 0 else "Reavalie o projeto."
+    st.markdown(f"**Decisão:** {decisão}")

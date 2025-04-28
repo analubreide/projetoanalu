@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 from scipy.stats import binom, poisson, norm
 
-# Criação de abas para diferentes distribuições
+# --- Layout das Abas ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "Análise de Overbooking", 
     "Distribuição de Chegada de Clientes", 
@@ -12,20 +12,20 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "Simulação de ROI do Sistema de Informação"
 ])
 
-# --- QUESTÃO 1 ---
+# --- QUESTÃO 1: Análise de Overbooking ---
 with tab1:
     st.header("Análise de Overbooking - Aérea Confiável")
     st.markdown("""
-**Contexto:**
-Você foi contratado como consultor de dados para a companhia aérea Aérea Confiável, que lançou promoções para a "Ilha dos Sonhos". Foram vendidas 130 passagens para um avião de 120 lugares, apostando que cerca de 12% dos passageiros faltariam. Avalie o risco de overbooking e a viabilidade financeira dessa estratégia.
+**Contexto:**  
+Você foi contratado como consultor para a companhia aérea fictícia Aérea Confiável.  
+A empresa vendeu 130 passagens para um voo com 120 lugares, contando que cerca de 12% dos passageiros faltarão.  
+Avalie o risco de overbooking e a viabilidade da estratégia.
 """)
 
-    # Inputs interativos
     vendidos = st.slider("Passagens Vendidas", min_value=120, max_value=200, value=130)
     p = st.slider("Taxa de Comparecimento (%)", min_value=0.0, max_value=1.0, value=0.88, step=0.01)
     capacidade = st.number_input("Capacidade do Avião", min_value=1, value=120)
 
-    # Distribuição Binomial
     xs = np.arange(0, vendidos + 1)
     pmf = binom.pmf(xs, vendidos, p)
     df_pmf = pd.DataFrame({"Comparecimentos": xs, "Probabilidade": pmf})
@@ -39,11 +39,9 @@ Você foi contratado como consultor de dados para a companhia aérea Aérea Conf
                       annotation_text="Capacidade", annotation_position="top right")
     st.plotly_chart(fig_pmf, use_container_width=True)
 
-    # Cálculo da probabilidade de overbooking
     prob_overbooking = 1 - binom.cdf(capacidade, vendidos, p)
     st.metric("Probabilidade de Overbooking (> capacidade)", f"{prob_overbooking:.2%}")
 
-    # Limite de risco 7%
     st.subheader("Limite de Risco: Overbooking ≤ 7%")
     vendas_test = np.arange(capacidade, vendidos * 2 + 1)
     riscos = [1 - binom.cdf(capacidade, n, p) for n in vendas_test]
@@ -64,10 +62,10 @@ Você foi contratado como consultor de dados para a companhia aérea Aérea Conf
     else:
         st.error("Nenhuma quantidade de passagens garante risco ≤ 7%.")
 
-    # Análise Financeira: Viabilidade de vender +10 assentos
-    st.subheader("Análise Financeira da Venda de 10 Passagens Extras")
+    st.subheader("Análise Financeira: Venda de 10 Passagens Extras")
     custo_ind = st.number_input("Custo Médio de Indenização por Passageiro (R$)", value=500)
     preco_medio = st.number_input("Preço Médio de Venda de Passagem (R$)", value=500)
+
     lucro_extra = 10 * preco_medio
     custo_esperado = prob_overbooking * custo_ind * (vendidos - capacidade)
 
@@ -75,9 +73,9 @@ Você foi contratado como consultor de dados para a companhia aérea Aérea Conf
     st.metric("Custo Esperado de Indenizações", f"R$ {custo_esperado:,.2f}".replace(",", "."))
 
     st.markdown("""
-**Discussão:**
-- A venda de passagens extras pode aumentar a receita, mas também expõe a companhia a custos elevados de indenizações.
-- Se o custo esperado superar o lucro extra ou houver risco à imagem da marca, a estratégia deve ser revista.
+**Discussão:**  
+- Vender passagens a mais aumenta a receita, mas também o risco de custos altos com indenizações.  
+- Se o custo esperado for maior que o lucro extra, ou se afetar a imagem da empresa, recomenda-se cautela.
 """)
 
 # --- DISTRIBUIÇÃO POISSON ---
@@ -85,11 +83,14 @@ with tab2:
     st.header("Distribuição de Poisson - Chegada de Clientes")
     lambda_val = st.slider("Taxa média de chegadas por hora (λ)", 1, 20, 5)
     horas = np.arange(0, 15)
-    df_poisson = pd.DataFrame({"Número de Clientes": horas,
-                               "Probabilidade": poisson.pmf(horas, mu=lambda_val)})
+    df_poisson = pd.DataFrame({
+        "Número de Clientes": horas,
+        "Probabilidade": poisson.pmf(horas, mu=lambda_val)
+    })
+
     fig_poisson = px.bar(
         df_poisson, x="Número de Clientes", y="Probabilidade",
-        title="Distribuição de Poisson - Chegada de Clientes",
+        title="Distribuição de Chegada de Clientes (Poisson)",
         labels={"Probabilidade": "P(X = k)"}
     )
     st.plotly_chart(fig_poisson, use_container_width=True)
@@ -98,21 +99,24 @@ with tab2:
 with tab3:
     st.header("Distribuição Normal - Vendas de Produtos")
     media = st.slider("Média de Vendas", 50, 150, 100)
-    desvio = st.slider("Desvio Padrão", 5, 30, 15)
+    desvio = st.slider("Desvio Padrão das Vendas", 5, 30, 15)
+
     x = np.linspace(media - 4*desvio, media + 4*desvio, 200)
     df_normal = pd.DataFrame({"Vendas": x, "Densidade": norm.pdf(x, media, desvio)})
+
     fig_normal = px.area(
         df_normal, x="Vendas", y="Densidade",
         title="Distribuição Normal das Vendas"
     )
     st.plotly_chart(fig_normal, use_container_width=True)
 
-# --- QUESTÃO 2 ---
+# --- QUESTÃO 2: Simulação de ROI ---
 with tab4:
-    st.header("Simulação de ROI - Investimento no Sistema de Informação")
+    st.header("Simulação de ROI - Sistema de Informação")
     st.markdown("""
-**Contexto:**
-A Aérea Confiável quer investir R$ 50.000,00 em um novo sistema de previsão de demanda, esperando uma receita adicional de R$ 80.000,00 no primeiro ano, com custo operacional anual de R$ 10.000,00. Avalie o ROI e simule cenários considerando a variabilidade da receita.
+**Contexto:**  
+A Aérea Confiável planeja investir R$ 50.000,00 em um novo sistema de previsão de demanda.  
+A expectativa é de receita adicional de R$ 80.000,00 por ano, com custo operacional de R$ 10.000,00.
 """)
 
     receita_esp = st.number_input("Receita Adicional Esperada (R$)", value=80000)
@@ -129,6 +133,7 @@ A Aérea Confiável quer investir R$ 50.000,00 em um novo sistema de previsão d
     sim_roi = (sim_lucro / investimento) * 100
 
     df_sim = pd.DataFrame({"ROI (%)": sim_roi})
+
     fig_hist = px.histogram(
         df_sim, x="ROI (%)", nbins=40,
         title="Distribuição Simulada de ROI",
@@ -136,23 +141,22 @@ A Aérea Confiável quer investir R$ 50.000,00 em um novo sistema de previsão d
     )
     st.plotly_chart(fig_hist, use_container_width=True)
 
-    # CDF
     fig_cdf = px.ecdf(
-        df_sim, x="ROI (%)", title="Função de Distribuição Acumulada (CDF) do ROI"
+        df_sim, x="ROI (%)",
+        title="Função de Distribuição Acumulada (CDF) do ROI"
     )
     st.plotly_chart(fig_cdf, use_container_width=True)
 
     prob_neg = np.mean(sim_roi < 0)
     st.metric("Probabilidade de ROI Negativo", f"{prob_neg:.2%}")
 
-    # Correção do texto de decisão
     decisao = "Se o ROI médio for positivo, o investimento é recomendado." if np.mean(sim_roi) > 0 else "Cuidado: ROI médio negativo indica necessidade de revisão do projeto."
 
     st.markdown(f"""
-**Cenários de Análise:**
-- **Otimista:** ROI máximo ≈ {np.max(sim_roi):.2f}%
-- **Pessimista:** ROI mínimo ≈ {np.min(sim_roi):.2f}%
-- **Realista:** Média de ROI ≈ {np.mean(sim_roi):.2f}%
+**Cenários de Análise:**  
+- **Otimista:** ROI máximo ≈ {np.max(sim_roi):.2f}%  
+- **Pessimista:** ROI mínimo ≈ {np.min(sim_roi):.2f}%  
+- **Realista:** Média de ROI ≈ {np.mean(sim_roi):.2f}%  
 
 **Decisão:** {decisao}
 """)

@@ -145,11 +145,14 @@ A Aérea Confiável quer investir R$ 50.000,00 em um novo sistema de previsão d
     prob_neg = np.mean(sim_roi < 0)
     st.metric("Probabilidade de ROI Negativo", f"{prob_neg:.2%}")
 
+    # Correção do texto de decisão
+    decisao = "Se o ROI médio for positivo, o investimento é recomendado." if np.mean(sim_roi) > 0 else "Cuidado: ROI médio negativo indica necessidade de revisão do projeto."
+
     st.markdown(f"""
 **Cenários de Análise:**
 - **Otimista:** ROI máximo ≈ {np.max(sim_roi):.2f}%
 - **Pessimista:** ROI mínimo ≈ {np.min(sim_roi):.2f}%
 - **Realista:** Média de ROI ≈ {np.mean(sim_roi):.2f}%
 
-**Decisão:**
-{"Se o ROI médio for positivo, o investimento é recomendado." if np.mean(sim_roi) > 0 else "Cuidado: ROI médio negativo indica necessidade de revisão do projeto.
+**Decisão:** {decisao}
+""")

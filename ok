@@ -1,0 +1,108 @@
+# --- QUESTÃO 1 ---
+# Adaptação no tab1: Distribuição Binomial para Overbooking
+with tab1:
+    st.header("Distribuição Binomial: Overbooking Aéreo")
+    st.markdown("### Questão 1 - Análise de Overbooking na Companhia Aérea Aérea Confiável")
+
+    st.markdown("""
+    **Contexto:** A companhia aérea vendeu **130 passagens** para um voo com **capacidade de 120 lugares**, esperando que nem todos compareçam. A chance de cada passageiro aparecer é de **88%**.
+    Vamos calcular a **probabilidade de overbooking** (mais de 120 pessoas comparecerem).
+    """)
+
+    p = 0.88
+    vendidos = 130
+    capacidade = 120
+
+    prob_overbooking = 1 - binom.cdf(capacidade, vendidos, p)
+
+    st.metric("Probabilidade de Overbooking (>120 passageiros)", f"{prob_overbooking*100:.2f}%")
+
+    st.markdown("---")
+    st.subheader("Limite de Risco de Overbooking (até 7%)")
+    st.markdown("Como o risco não pode ultrapassar 7%, vamos verificar até quantas passagens podem ser vendidas mantendo essa condição.")
+
+    limite_passagens = np.arange(120, 151)
+    riscos = [1 - binom.cdf(capacidade, n, p) for n in limite_passagens]
+    df_riscos = pd.DataFrame({"Passagens Vendidas": limite_passagens, "Risco de Overbooking": riscos})
+
+    fig_risco = px.line(df_riscos, x="Passagens Vendidas", y="Risco de Overbooking",
+                        title="Risco de Overbooking conforme Número de Passagens Vendidas",
+                        labels={"Risco de Overbooking": "Probabilidade"})
+    fig_risco.add_hline(y=0.07, line_dash="dash", line_color="red")
+    st.plotly_chart(fig_risco, use_container_width=True)
+
+    max_seguro = df_riscos[df_riscos["Risco de Overbooking"] <= 0.07]["Passagens Vendidas"].max()
+    if not np.isnan(max_seguro):
+        st.success(f"Número máximo de passagens que podem ser vendidas mantendo o risco ≤ 7%: {max_seguro}")
+    else:
+        st.error("Nenhuma quantidade de passagens vendidas mantém o risco abaixo de 7%.")
+
+    st.markdown("---")
+    st.subheader("Análise de Viabilidade Financeira: Vender +10 Assentos")
+
+    st.markdown("""
+    Se forem vendidas 130 passagens (10 acima da capacidade), o risco de overbooking será de aproximadamente
+    **{prob_overbooking*100:.2f}%**. Se o custo por passageiro realocado for de R$ 500:
+    """)
+
+    custo_indenizacao = 500
+    custo_esperado = prob_overbooking * custo_indenizacao * (vendidos - capacidade)
+    lucro_extra = 10 * 500  # Supondo R$ 500 por passagem extra vendida
+
+    st.metric("Lucro Bruto com 10 Passagens Extras", f"R$ {lucro_extra:,.2f}".replace(",", "."))
+    st.metric("Custo Esperado com Overbooking", f"R$ {custo_esperado:,.2f}".replace(",", "."))
+
+    if lucro_extra > custo_esperado:
+        st.success("A venda de 10 passagens extras é **financeiramente viável** neste cenário.")
+    else:
+        st.warning("A venda de 10 passagens extras pode não compensar o custo de possíveis indenizações.")
+
+
+# --- QUESTÃO 2 ---
+# Adaptação no tab4: Simulação de ROI para novo sistema de informação
+with tab4:
+    st.header("Simulação Interativa de ROI - Novo Sistema de Informação")
+    st.markdown("""
+    ### Questão 2 - ROI de Sistema de Informação
+    **Cenário:** Investimento de R$ 50.000, com receita esperada de R$ 80.000 e custo operacional de R$ 10.000.
+    """)
+
+    receita_esperada = 80000
+    custo_operacional = 10000
+    investimento = 50000
+
+    lucro_esperado = receita_esperada - custo_operacional
+    roi_esperado = (lucro_esperado / investimento) * 100
+
+    st.metric("ROI Esperado", f"{roi_esperado:.2f}%")
+
+    st.markdown("""
+    ### Análise de Incerteza - Simulação Monte Carlo
+    Vamos simular a receita obtida pelo sistema com base em uma distribuição normal (média R$ 80.000, desvio padrão R$ 10.000)
+    e observar a variação do ROI real.
+    """)
+
+    np.random.seed(42)
+    sim_receita = np.random.normal(loc=80000, scale=10000, size=1000)
+    sim_lucro = sim_receita - custo_operacional
+    sim_roi = (sim_lucro / investimento) * 100
+
+    df_sim = pd.DataFrame({"Receita": sim_receita, "Lucro": sim_lucro, "ROI (%)": sim_roi})
+
+    fig_roi = px.histogram(df_sim, x="ROI (%)", nbins=40, title="Distribuição Simulada de ROI")
+    st.plotly_chart(fig_roi, use_container_width=True)
+
+    # Probabilidade da receita ser inferior a R$ 60.000
+    prob_baixa = np.mean(sim_receita < 60000)
+    st.metric("Prob. de Receita < R$ 60.000", f"{prob_baixa*100:.2f}%")
+
+    st.markdown("---")
+    st.subheader("Cenários de ROI")
+    st.write(f"**Cenário Otimista (ROI Máximo):** {np.max(sim_roi):.2f}%")
+    st.write(f"**Cenário Pessimista (ROI Mínimo):** {np.min(sim_roi):.2f}%")
+    st.write(f"**Cenário Real (Médio):** {np.mean(sim_roi):.2f}%")
+
+    if np.mean(sim_roi) > 0:
+        st.success("O sistema é promissor com ROI médio positivo. Recomenda-se a adoção, com monitoramento do desempenho.")
+    else:
+        st.warning("O sistema apresenta risco elevado de prejuízo. Avaliar melhorias antes da adoção definitiva.")

@@ -1,11 +1,6 @@
-import streamlit as st
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
-from scipy.stats import binom
-from scipy.stats import norm
-import pandas as pd
-from PIL import Image
-import subprocess
-import warnings
-warnings.filterwarnings("ignore")
+﻿streamlit
+numpy
+plotly
+scipy
+pandas
+Pillow
